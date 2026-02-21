@@ -1,34 +1,108 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 📅 Notion → Google Calendar 同期
 
-## Getting Started
+NotionのTODOデータベースにある「いつやる？」プロパティの日時をGoogleカレンダーに自動同期するシステムです。
 
-First, run the development server:
+## 機能
+
+- ✅ Notionタスクの「いつやる？」（開始・終了日時）をGoogleカレンダーに登録
+- ✅ タスクの更新を検知してGoogleカレンダーの予定を更新
+- ✅ 「いつやる？」が削除されたらGoogleカレンダーの予定も削除
+- ✅ 差分同期（最近更新されたタスクのみ処理）
+
+## セットアップ
+
+### 1. Notion側の設定
+
+1. [Notion Integrations](https://www.notion.so/my-integrations) でインテグレーションを作成
+2. APIキー（`secret_xxx...`）をメモ
+3. TODOデータベースページで「...」→「コネクト」→ インテグレーションを追加
+4. TODOデータベースに **テキスト型** の `GCalEventID` プロパティを追加
+   - データベースのプロパティ追加 → 名前: `GCalEventID` → タイプ: テキスト
+5. データベースIDをURLから取得
+   - URL例: `https://www.notion.so/xxxx?v=yyyy` の `xxxx` 部分
+
+### 2. Google Cloud側の設定
+
+1. [Google Cloud Console](https://console.cloud.google.com/) にアクセス
+2. 新しいプロジェクトを作成
+3. **APIとサービス** → **APIを有効にする** → **Google Calendar API** を有効化
+4. **APIとサービス** → **認証情報** → **サービスアカウントを作成**
+   - 名前: 任意（例: `notion-gcal-sync`）
+5. 作成したサービスアカウントをクリック → **鍵** タブ → **鍵を追加** → **JSON** → ダウンロード
+6. JSONファイルから以下を取得:
+   - `client_email` → `GOOGLE_SERVICE_ACCOUNT_EMAIL`
+   - `private_key` → `GOOGLE_PRIVATE_KEY`
+7. [Googleカレンダー](https://calendar.google.com/) の設定 → **特定のユーザーと共有** → サービスアカウントのメールアドレスを追加（権限: **予定の変更**）
+
+### 3. 環境変数の設定
+
+`.env.example` を `.env.local` にコピーして値を設定:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+| 変数名 | 説明 |
+|---------|------|
+| `NOTION_API_KEY` | Notionインテグレーションのシークレット |
+| `NOTION_DATABASE_ID` | TODOデータベースのID |
+| `GOOGLE_SERVICE_ACCOUNT_EMAIL` | サービスアカウントのメールアドレス |
+| `GOOGLE_PRIVATE_KEY` | サービスアカウントの秘密鍵（JSON内の`private_key`） |
+| `GOOGLE_CALENDAR_ID` | Googleカレンダーのカレンダー ID（通常はGmailアドレス） |
+| `CRON_SECRET` | APIエンドポイント保護用の任意の文字列 |
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 4. ローカル実行
 
-## Learn More
+```bash
+npm install
+npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+同期をテスト:
+```bash
+# 全件同期
+curl http://localhost:3000/api/sync?full=true
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# 差分同期（過去15分の更新のみ）
+curl http://localhost:3000/api/sync
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 5. Vercelへのデプロイ
 
-## Deploy on Vercel
+```bash
+# Vercel CLIでデプロイ
+npx vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+# 環境変数をVercelに設定
+npx vercel env add NOTION_API_KEY
+npx vercel env add NOTION_DATABASE_ID
+npx vercel env add GOOGLE_SERVICE_ACCOUNT_EMAIL
+npx vercel env add GOOGLE_PRIVATE_KEY
+npx vercel env add GOOGLE_CALENDAR_ID
+npx vercel env add CRON_SECRET
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 6. 頻繁な同期の設定（推奨）
+
+Vercel無料プランのCronは1日1回のため、5分ごとの同期には外部cronサービスを使用:
+
+1. [cron-job.org](https://cron-job.org/) に登録（無料）
+2. 新しいcron jobを作成:
+   - **URL**: `https://your-app.vercel.app/api/sync`
+   - **Schedule**: Every 5 minutes
+   - **Headers**: `Authorization: Bearer <CRON_SECRETの値>`
+
+## APIエンドポイント
+
+| エンドポイント | 説明 |
+|---------------|------|
+| `GET /api/sync` | 過去15分の更新を同期 |
+| `GET /api/sync?full=true` | 全タスクを同期 |
+
+## Notionデータベースの必要プロパティ
+
+| プロパティ名 | タイプ | 説明 |
+|-------------|--------|------|
+| タイトル | title | タスク名（Googleカレンダーの予定名になる） |
+| いつやる？ | date | 開始・終了日時（Googleカレンダーの予定日時） |
+| GCalEventID | text | 同期用ID（自動入力、手動編集不要） |
