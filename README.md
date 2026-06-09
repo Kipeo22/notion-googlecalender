@@ -53,6 +53,8 @@ cp .env.example .env.local
 | `GOOGLE_CALENDAR_ID` | Googleカレンダーのカレンダー ID（通常はGmailアドレス） |
 | `CRON_SECRET` | APIエンドポイント保護用の任意の文字列 |
 
+`OLD_CAL_ID` と `NEW_CAL_ID` は通常の同期処理では使用しません。Vercel の環境変数にも不要です。
+
 ### 4. ローカル実行
 
 ```bash
@@ -63,10 +65,10 @@ npm run dev
 同期をテスト:
 ```bash
 # 全件同期
-curl http://localhost:3000/api/sync?full=true
+curl -H "Authorization: Bearer $CRON_SECRET" "http://localhost:3000/api/sync?full=true"
 
 # 差分同期（過去15分の更新のみ）
-curl http://localhost:3000/api/sync
+curl -H "Authorization: Bearer $CRON_SECRET" "http://localhost:3000/api/sync"
 ```
 
 ### 5. Vercelへのデプロイ
@@ -83,6 +85,8 @@ npx vercel env add GOOGLE_PRIVATE_KEY
 npx vercel env add GOOGLE_CALENDAR_ID
 npx vercel env add CRON_SECRET
 ```
+
+`NOTION_API_KEY`, `GOOGLE_PRIVATE_KEY`, `CRON_SECRET` は Vercel で Sensitive として保存してください。`GOOGLE_SERVICE_ACCOUNT_EMAIL` は秘密鍵ではありませんが、外部公開する必要はないため Sensitive にして問題ありません。既存の環境変数を Sensitive に変更する場合は、Vercel 上で削除してから Sensitive 有効で再作成し、再デプロイします。
 
 ### 6. 頻繁な同期の設定（推奨）
 

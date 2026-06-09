@@ -2,7 +2,6 @@ import {
   getNotionTasks,
   setGCalEventId,
   clearGCalEventId,
-  getTasksWithGCalId,
   type NotionTask,
 } from "./notion";
 import {
@@ -111,7 +110,7 @@ async function processTask(
 
 function taskToCalendarEvent(task: NotionTask): CalendarEvent {
   // 「いつやる？」の日時がある場合
-  let start = task.whenStart!;
+  const start = task.whenStart!;
   let end = task.whenEnd || task.whenStart!;
 
   // 終日イベント（時刻なし）の場合、endを翌日にする必要がある
